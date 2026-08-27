@@ -1,0 +1,11 @@
+.env.local
+.env
+*.env
+backups/
+data/*.log
+data/*.jsonl
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+venv/
+.venv/
