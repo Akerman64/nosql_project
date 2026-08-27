@@ -1,37 +1,37 @@
 
 ==============================================================================
 idx_category_main  ->  lister les produits d'une categorie feuille donnee
-requete : {'category_main': 'fr:fromages-blancs-natures'}
-  AVANT : COLLSCAN                     docs_examines= 19879  retournes=   68  3 ms
-  APRES : FETCH <- IXSCAN              docs_examines=    68  cles_examinees=    68  retournes=   68  0 ms
-  index construit en 38 ms | selectivite nRetournes/nExamines = 1.00
+requete : {'category_main': 'en:waters'}
+  AVANT : COLLSCAN                     docs_examines= 18417  retournes=  935  14 ms
+  APRES : FETCH <- IXSCAN              docs_examines=   935  cles_examinees=   935  retournes=  935  2 ms
+  index construit en 241 ms | selectivite nRetournes/nExamines = 1.00
 
 ==============================================================================
 idx_nutriscore_sugars  ->  produits d'un Nutri-Score, tries du plus sucre au moins sucre (regle ESR)
 requete : {'nutriscore_grade': 'c'}  tri : [('nutriments.sugars_100g', -1)]
-  AVANT : SORT <- COLLSCAN             docs_examines= 19879  retournes= 4236  11 ms
-  APRES : FETCH <- IXSCAN              docs_examines=  4236  cles_examinees=  4236  retournes= 4236  3 ms
-  index construit en 64 ms | selectivite nRetournes/nExamines = 1.00
+  AVANT : SORT <- COLLSCAN             docs_examines= 18417  retournes= 3725  26 ms
+  APRES : FETCH <- IXSCAN              docs_examines=  3725  cles_examinees=  3725  retournes= 3725  7 ms
+  index construit en 242 ms | selectivite nRetournes/nExamines = 1.00
 
 ==============================================================================
 idx_additives_multikey  ->  retrouver tous les produits contenant un additif (index multikey sur tableau)
 requete : {'additives': 'en:e330'}
-  AVANT : COLLSCAN                     docs_examines= 19879  retournes= 2526  4 ms
-  APRES : FETCH <- IXSCAN              docs_examines=  2526  cles_examinees=  2526  retournes= 2526  1 ms
-  index construit en 47 ms | selectivite nRetournes/nExamines = 1.00
+  AVANT : COLLSCAN                     docs_examines= 18417  retournes= 2152  14 ms
+  APRES : FETCH <- IXSCAN              docs_examines=  2152  cles_examinees=  2152  retournes= 2152  4 ms
+  index construit en 255 ms | selectivite nRetournes/nExamines = 1.00
 
 ==============================================================================
 idx_last_modified  ->  flux des produits modifies depuis une date (plage + tri, dimension temporelle)
 requete : {'last_modified_t': {'$gte': datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)}}  tri : [('last_modified_t', -1)]
-  AVANT : SORT <- COLLSCAN             docs_examines= 19879  retournes=19796  19 ms
-  APRES : FETCH <- IXSCAN              docs_examines= 19796  cles_examinees= 19796  retournes=19796  10 ms
-  index construit en 36 ms | selectivite nRetournes/nExamines = 1.00
+  AVANT : SORT <- COLLSCAN             docs_examines= 13699  retournes=    0  26 ms
+  APRES : FETCH <- IXSCAN              docs_examines= 18340  cles_examinees= 18340  retournes=18340  31 ms
+  index construit en 213 ms | selectivite nRetournes/nExamines = 1.00
 
 ------------------------------------------------------------------------------
-taille donnees  : 44.9 Mo
+taille donnees  : 41.9 Mo
 taille index    : 1.7 Mo
-    _id_                         0.73 Mo
-    idx_category_main            0.19 Mo
-    idx_nutriscore_sugars        0.22 Mo
-    idx_additives_multikey       0.32 Mo
-    idx_last_modified            0.24 Mo
+    _id_                         0.82 Mo
+    idx_category_main            0.18 Mo
+    idx_nutriscore_sugars        0.20 Mo
+    idx_additives_multikey       0.28 Mo
+    idx_last_modified            0.23 Mo

@@ -5,7 +5,13 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-set -a; source .env.local; set +a
+
+# Lecture sûre de .env.local : on n'exécute pas le fichier (le '&' de l'URI
+# Atlas casserait `source`). On extrait chaque variable et on retire les guillemets.
+read_env() { grep -E "^$1=" .env.local | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//"; }
+ATLAS_URI="$(read_env ATLAS_URI)"
+LOCAL_URI="$(read_env LOCAL_URI)"
+DB_NAME="$(read_env DB_NAME)"
 
 URI="${ATLAS_URI:-${LOCAL_URI:?Aucune URI dans .env.local}}"
 DB="${DB_NAME:-off_projet}"
