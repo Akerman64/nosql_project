@@ -1,0 +1,183 @@
+========================================================================
+  FEUILLE DE COMMANDES — VIDEO DE SOUTENANCE
+========================================================================
+
+OU  : un terminal, place dans le dossier  projet_off/
+      (fais d'abord :  cd "chemin/vers/projet_off"  )
+QUI : les commandes sont a copier-coller telles quelles, dans l'ordre.
+AVANT DE LANCER L'ENREGISTREMENT :
+  - police du terminal agrandie
+  - onglet navigateur ouvert sur Atlas > Browse Collections
+  - notebook  notebooks/rapport_analytique.ipynb  deja execute et ouvert
+  - editeur ouvert sur  src/aggregations.py
+  - lance une sauvegarde fraiche :   ./scripts/backup.sh
+
+------------------------------------------------------------------------
+ PREPARATION (une fois, avant de commencer a filmer)
+------------------------------------------------------------------------
+export ATLAS_URI="$(grep -E '^ATLAS_URI=' .env.local | cut -d= -f2- | tr -d '\"')"
+./scripts/backup.sh
+# -> cree  backups/AAAAMMJJ_HHMMSS/  ; note le nom du dossier, tu en auras besoin au segment 5
+
+
+========================================================================
+ SEGMENT 0 — INTRO  (0:30)
+========================================================================
+Rien a taper. Face camera. Voir le texte dans le "Plan de tournage".
+
+
+========================================================================
+ SEGMENT 1 — DONNEES & MODELISATION  (2:30)
+========================================================================
+python demo/show.py collections
+python demo/show.py fiche
+
+ATTENDU :
+  - collections :  products 18417 | categories 5314 | additives 266   (instantane)
+  - fiche : un gros bloc JSON. A montrer du doigt :
+      * "nutriments": { ... }            -> sous-bloc embarque
+      * "ingredients": [ {..}, {..} ]    -> liste de sous-documents
+      * "categories_tags": [...]         -> chaine d'ancetres, du general au precis
+      * "additives": ["en:e470b"]        -> juste des codes (renvoi vers la collection additives)
+  Temps : ~2 secondes.
+
+PHRASE CLE : "chaque fiche n'a pas les memes champs -> c'est pour ca MongoDB
+et pas un tableau relationnel."
+
+
+========================================================================
+ SEGMENT 2 — ATLAS & CRUD  (2:30)
+========================================================================
+# (1) D'ABORD : montrer l'ecran Atlas > Browse Collections (navigateur). Rien a taper.
+
+# (2) puis dans le terminal :
+python -m src.crud
+
+ATTENDU (8 lignes, ~3 secondes) :
+  CREATE  OpResult(ok=True, ...)
+  CREATE2 OpResult(ok=False, error='le produit ... existe deja')   <- doublon attrape
+  READ    Produit de test CRUD
+  UPDATE  OpResult(ok=True, data={'modified': 1})
+  UPDATE? OpResult(ok=True, ...) (warn, non bloquant)
+  FIND    5 resultats
+  DELETE  OpResult(ok=True, data={'deleted': 1})
+  DELETE0 OpResult(ok=False, error='code vide : suppression refusee')  <- garde-fou
+
+# (3) securite :
+git status
+git check-ignore -v .env.local
+
+ATTENDU :
+  git status            -> "rien a valider" / arbre propre
+  git check-ignore ...  -> ".gitignore:1:.env.local   .env.local"   (le secret est ignore)
+
+
+========================================================================
+ SEGMENT 3 — INDEX  (2:30)
+========================================================================
+python -m src.indexes
+
+ATTENDU (~10 a 15 secondes) : pour chacun des 4 index, 2 lignes AVANT / APRES.
+  Le plus parlant, a commenter :
+    idx_nutriscore_sugars
+      AVANT : SORT <- COLLSCAN   docs_examines=18417   ~25 ms   <- lit tout + trie en memoire
+      APRES : FETCH <- IXSCAN    docs_examines=~3700   ~7 ms    <- index utilise, plus de tri
+  Puis, en bas : "taille donnees ~42 Mo | taille index ~1.7 Mo".
+
+PHRASE CLE : "avant : tout lu + tri. apres : index utilise, le tri disparait
+parce que l'index range deja dans le bon ordre (regle ESR)."
+
+
+========================================================================
+ SEGMENT 4 — AGREGATIONS  (2:30)
+========================================================================
+python -m src.aggregations
+
+ATTENDU (~3 secondes) : les 4 questions avec leurs resultats.
+  Q1  A 2.9 / B 2.3 / C 6.2 / D 37.5 / E 28.2   (sucre) ; sel 0.32 -> 1.26
+  Q2  chips extrudees 100% / brioches 98% / charcuteries cuites 97% / viennoiseries 96%
+  Q3  E330 2152 / E322 1652 / E322i 1168 / E471 1050 / E300 1036 / E500 1011
+  Q4  pic 2017 (~2500 ajouts) ; note moyenne ~3.1 stable
+
+# puis, SANS RIEN TAPER :
+#  - montrer le notebook deja execute -> descendre jusqu'au graphe Q1
+#  - montrer src/aggregations.py -> la fonction additifs_les_plus_frequents (Q3),
+#    et la derouler a voix haute : $unwind -> $group -> $sort -> $limit -> $lookup -> $project
+
+
+========================================================================
+ SEGMENT 5 — SAUVEGARDE / PIEGE / RESTAURATION  (3:00)
+========================================================================
+# rappel : mets le nom du dossier de backup dans une variable pour aller vite
+export DUMP="$(ls -td backups/*/ | head -1)"
+echo "$DUMP"          # verifie : backups/AAAAMMJJ_HHMMSS/
+
+# 5.1  sauvegarde
+./scripts/backup.sh
+ATTENDU : "mongodump base=off_projet -> backups/..." puis la liste des fichiers :
+          products.bson.gz (~6.6M) = les donnees
+          products.metadata.json.gz = la fiche technique (les index)
+
+# 5.2  on casse la base
+python demo/show.py casser
+ATTENDU :
+  nombre de produits   : 18418                       <- +1 faux produit
+  produit 3017620422003 : TITRE CASSE PENDANT LA DEMO
+  faux produit present : True
+
+# 5.3  restauration SANS --drop  (LE PIEGE)
+mongorestore --uri "$ATLAS_URI" --gzip --nsInclude "off_projet.*" "${DUMP%/}/off_projet"
+ATTENDU (~30 s) : des dizaines de lignes
+  "continuing through error: E11000 duplicate key error ... dup key: { _id: ... }"
+  puis a la fin : "23996 document(s) restored successfully."   <- FAUX succes
+
+python demo/show.py etat
+ATTENDU : IDENTIQUE a l'etape 5.2 -> 18418, titre casse, faux produit toujours la.
+PHRASE CLE : "aucune erreur bloquante, message de succes... et pourtant RIEN
+n'a ete repare. C'est ca le piege."
+
+# 5.4  restauration AVEC --drop  (la bonne)
+./scripts/restore.sh "${DUMP%/}/off_projet"
+ATTENDU (~45 s) :
+  "dropping collection off_projet.products before restoring"
+  "finished restoring off_projet.products (18417 documents, 0 failures)"
+  "index: idx_category_main / idx_nutriscore_sugars / idx_additives_multikey / idx_last_modified"
+  "verification :  products : 18417 / categories : 5314 / additives : 266"
+
+python demo/show.py etat
+ATTENDU :
+  nombre de produits   : 18417                <- repare
+  produit 3017620422003 : Nutella
+  faux produit present : False
+
+# 5bis  bonus (si l'index vectoriel n'est pas cree, on montre juste la definition)
+python -m src.vector_search index-def
+ATTENDU : un bloc JSON  { "fields": [ { "type": "vector", "numDimensions": 384, ... } ] }
+# si le bonus est fait sur Atlas :
+# python -m src.vector_search search "une pate a tartiner sans huile de palme"
+
+
+========================================================================
+ SEGMENT 6 — QUESTION DE DEFENSE  (1:00)
+========================================================================
+Rien a taper. Afficher plein ecran une diapo / un fichier texte avec la
+question tiree jeudi, puis y repondre face camera (reponses pretes dans
+le "Plan de tournage").
+
+
+========================================================================
+ SEGMENT 7 — CONCLUSION  (0:20)
+========================================================================
+Rien a taper. Face camera : une phrase de recap + merci.
+
+
+========================================================================
+ SI CA COINCE
+========================================================================
+- "querySrv EBADRESP ..." sur mongosh/mongorestore : DNS Atlas capricieux.
+  Attendre 5 s et relancer la meme commande. Les commandes  python demo/show.py ...
+  et  python -m src.*  sont plus tolerantes.
+- Une commande echoue pendant la prise : on NE COUPE PAS. On explique
+  calmement et on relance. Une hesitation assumee passe mieux qu'un montage.
+- Apres la prise, remettre la base propre si besoin :
+  ./scripts/restore.sh "$(ls -td backups/*/ | head -1)off_projet"
